@@ -1,4 +1,4 @@
-function [result_focal_normalized, result_random_big_normalized, result_random_small_normalized] = spread(sample_name, filename_stack_1, filename_stack_2, filename_mask, filename_veins, damage_r, damage_c, damage_radius, focal_distance_max, n_samples_random)
+function [result_focal_normalized, result_random_big_normalized, result_random_small_normalized] = spread(sample_name, filename_stack_1, filename_stack_2, filename_stack_3, filename_mask, filename_veins, damage_r, damage_c, damage_radius, focal_distance_max, n_samples_random)
     % damage_* are in original coordinates on vein image
 
     SIZE_BIG = 15;
@@ -21,6 +21,13 @@ function [result_focal_normalized, result_random_big_normalized, result_random_s
         delete(fn_2{1});
     end
 
+    if (~strcmp(filename_stack_3,''))
+        fprintf('load in stack 3\n');
+        fn_3 = unzip(filename_stack_3,'temp');
+        stack_3 = tiffreadVolume(fn_3{1});
+        delete(fn_3{1});
+    end
+
     % remove temp files
     try
         rmdir('temp');
@@ -29,14 +36,18 @@ function [result_focal_normalized, result_random_big_normalized, result_random_s
     fprintf('mask the stacks\n');
     mask = logical(imread(filename_mask));
     
+    fprintf('concatenate the stacks\n');
+    stack = stack_1;
     if (~strcmp(filename_stack_2,''))
-        stack = logical(cat(3, stack_1, stack_2));
-        clear stack_1;
+        stack = logical(cat(3, stack, stack_2));
         clear stack_2;
-    else
-        stack = stack_1;
-        clear stack_1;
+
+        if (~strcmp(filename_stack_3,''))
+            stack = logical(cat(3, stack, stack_3));
+            clear stack_3;
+        end
     end
+    clear stack_1;
     
     mask_scaled = imresize(mask, size(stack,[1 2]));
     
