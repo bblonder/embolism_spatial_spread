@@ -35,7 +35,7 @@ function [result_focal_normalized, result_random_big_normalized, result_random_s
     
     fprintf('mask the stacks\n');
     mask = logical(imread(filename_mask));
-    
+
     fprintf('concatenate the stacks\n');
     stack = stack_1;
     if (~strcmp(filename_stack_2,''))
@@ -55,7 +55,16 @@ function [result_focal_normalized, result_random_big_normalized, result_random_s
     
     stack_masked = stack & ~mask_array;
     
+    % get the embolism time series
     fprintf('get all embolisms\n');
+    ts = squeeze(sum(stack_masked, [1 2]));
+    
+    f00 = figure;
+    plot(ts); hold on; plot(cumsum(ts));
+    saveas(f00, sprintf('results/%s_ts',sample_name),'png');
+    close(f00);
+
+    fprintf('summing all embolisms\n');
     stack_max = sum(stack_masked, 3);
     
     fprintf('resize veins\n');
@@ -197,6 +206,7 @@ function [result_focal_normalized, result_random_big_normalized, result_random_s
     close(f2);
 
     fprintf('write out files\n');
+    writematrix(ts,sprintf('results/%s_ts.csv',sample_name));
     writematrix(result_focal_normalized,sprintf('results/%s_focal_normalized.csv',sample_name));
     writematrix(result_random_big_normalized,sprintf('results/%s_random_big_normalized.csv',sample_name));
     writematrix(result_random_small_normalized,sprintf('results/%s_random_small_normalized.csv',sample_name));
