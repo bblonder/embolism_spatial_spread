@@ -1,5 +1,5 @@
-FOCAL_DISTANCE_MAX = 200;
-N_SAMPLES_RANDOM = 50;
+FOCAL_DISTANCE_MAX = 250;
+N_SAMPLES_RANDOM = 100;
 
 % good
 spread('Com_ery_C_2', ...

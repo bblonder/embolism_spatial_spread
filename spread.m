@@ -1,13 +1,27 @@
-function [result_focal_normalized, result_random_big_normalized, result_random_small_normalized] = spread(sample_name, filename_stack_1, filename_stack_2, filename_stack_3, filename_mask, filename_veins, damage_r, damage_c, damage_radius, focal_distance_max, n_samples_random)
+function [] = spread(sample_name, filename_stack_1, filename_stack_2, filename_stack_3, filename_mask, filename_veins, damage_r, damage_c, damage_radius, focal_distance_max, n_samples_random)
     % damage_* are in original coordinates on vein image
 
-    SIZE_BIG = 15;
-    SIZE_SMALL = 5;
+    SIZE_BIG = 12;
+    SIZE_SMALL = 4;
     
     mkdir('results');
     mkdir('temp');
 
-    focal_distance_step = 10; % not really analyzed
+    % load in the mask
+    mask = logical(imread(filename_mask));
+
+    % make a mask image with the damage cutout and then inverted
+    fprintf('make damage mask\n');
+    if (~isnan(damage_c))
+        mask_with_damage = insertShape(uint8(mask), 'filledcircle',[damage_c damage_r, damage_radius],ShapeColor='white');
+        mask_with_damage = ~logical(mask_with_damage(:,:,1)>0);
+    else
+        mask_with_damage = ~mask;
+    end
+    f000=figure;
+    imshow(mask_with_damage);
+    saveas(f000, sprintf('results/%s_mask_with_damage',sample_name),'png');
+    close(f000);
     
     fprintf('load in stack 1\n');
     fn_1 = unzip(filename_stack_1,'temp');
@@ -31,10 +45,11 @@ function [result_focal_normalized, result_random_big_normalized, result_random_s
     % remove temp files
     try
         rmdir('temp');
+    catch
+        fprintf('*** temp dir could not be removed\n')
     end
     
-    fprintf('mask the stacks\n');
-    mask = logical(imread(filename_mask));
+
 
     fprintf('concatenate the stacks\n');
     stack = stack_1;
@@ -49,11 +64,16 @@ function [result_focal_normalized, result_random_big_normalized, result_random_s
     end
     clear stack_1;
     
+    % get the mask and use it
+    fprintf('mask the stacks\n');
     mask_scaled = imresize(mask, size(stack,[1 2]));
     
     mask_array = repmat(mask_scaled, [1 1 size(stack, 3)]);
     
     stack_masked = stack & ~mask_array;
+
+    % also scale the damage mask
+    mask_with_damage_scaled = imresize(mask_with_damage, size(stack,[1 2]));
     
     % get the embolism time series
     fprintf('get all embolisms\n');
@@ -79,7 +99,7 @@ function [result_focal_normalized, result_random_big_normalized, result_random_s
     f0 = figure;
     img = veins_scaled;
     if (~isnan(damage_radius))
-        img = insertShape(img,'filledcircle',[damage_c/scale_factor_veins damage_r/scale_factor_veins, damage_radius/scale_factor_veins],ShapeColor="blue");
+        img = insertShape(img,'filledcircle',[damage_c/scale_factor_veins damage_r/scale_factor_veins, damage_radius/scale_factor_veins],ShapeColor="red");
     end
     imshow(img);
     saveas(f0, sprintf('results/%s_damage',sample_name),'png');
@@ -142,72 +162,80 @@ function [result_focal_normalized, result_random_big_normalized, result_random_s
 
 
     fprintf('extract random damage location data\n');
-
     result_random_big = NaN([size(stack_masked,3) n_samples_random]);
+    result_random_big_mask = NaN(1, n_samples_random);
     for i=1:n_samples_random
         focal_r = idx_r_big_ss(i);
         focal_c = idx_c_big_ss(i);
-    
-        fprintf('%d/%d x=%d y=%d\n',i, n_samples_random, focal_r, focal_c);
     
         stack_subset = stack_masked((focal_r-focal_distance_max):(focal_r+focal_distance_max), (focal_c-focal_distance_max):(focal_c+focal_distance_max), :);
         values_focal_time_series = sum(stack_subset, 1:2);
     
         result_random_big(:,i) = values_focal_time_series;
+
+        values_mask_with_damage_big = mask_with_damage_scaled((focal_r-focal_distance_max):(focal_r+focal_distance_max), (focal_c-focal_distance_max):(focal_c+focal_distance_max));
+
+        result_random_big_mask(:,i) = sum(values_mask_with_damage_big(:));
+
+        fprintf('big %d/%d x=%d y=%d %d\n', i, n_samples_random, focal_r, focal_c, result_random_big_mask(:,i));
     end
-    % normalize by the area being considered
-    result_random_big_normalized = result_random_big ./ (2*focal_distance_max)^2;
 
     result_random_small = NaN([size(stack_masked,3) n_samples_random]);
+    result_random_small_mask = NaN(1, n_samples_random);
     for i=1:n_samples_random
         focal_r = idx_r_small_ss(i);
         focal_c = idx_c_small_ss(i);
-    
-        fprintf('%d/%d x=%d y=%d\n',i, n_samples_random, focal_r, focal_c);
     
         stack_subset = stack_masked((focal_r-focal_distance_max):(focal_r+focal_distance_max), (focal_c-focal_distance_max):(focal_c+focal_distance_max), :);
         values_focal_time_series = sum(stack_subset, 1:2);
     
         result_random_small(:,i) = values_focal_time_series;
+
+        values_mask_with_damage_small = mask_with_damage_scaled((focal_r-focal_distance_max):(focal_r+focal_distance_max), (focal_c-focal_distance_max):(focal_c+focal_distance_max));
+
+        result_random_small_mask(:,i) = sum(values_mask_with_damage_small(:));
+
+        fprintf('small %d/%d x=%d y=%d %d\n',i, n_samples_random, focal_r, focal_c, result_random_small_mask(:,i));
     end
-    % normalize by the area being considered
-    result_random_small_normalized = result_random_small ./ (2*focal_distance_max)^2;
     
     fprintf('extract focal damage location data\n');
-    focal_distance_series = focal_distance_step:focal_distance_step:focal_distance_max;
-    result_focal = NaN([size(stack_masked,3) length(focal_distance_series)]);
+    result_focal = NaN([size(stack_masked,3) 1]);
+    result_focal_mask = NaN;
+
     if (~isnan(damage_radius))
-        % try at different distance scales
-        for i=1:length(focal_distance_series)
-            focal_r = floor(damage_r/scale_factor_veins);
-            focal_c = floor(damage_c/scale_factor_veins);
-        
-            fprintf('%d/%d r=%d c=%d distance=%d\n',i, length(focal_distance_series), focal_r, focal_c, focal_distance_series(i));
-        
-            stack_subset = stack_masked((focal_r-focal_distance_series(i)):(focal_r+focal_distance_series(i)), (focal_c-focal_distance_series(i)):(focal_c+focal_distance_series(i)), :);
-            values_focal_time_series = sum(stack_subset, 1:2);
-        
-            result_focal(:,i) = values_focal_time_series;
-        end
+        focal_r = floor(damage_r/scale_factor_veins);
+        focal_c = floor(damage_c/scale_factor_veins);
+
+        stack_subset = stack_masked((focal_r-focal_distance_max):(focal_r+focal_distance_max), (focal_c-focal_distance_max):(focal_c+focal_distance_max), :);
+        values_focal_time_series = sum(stack_subset, 1:2);
+    
+        result_focal = squeeze(values_focal_time_series);
+
+        values_mask_with_damage_focal = mask_with_damage_scaled((focal_r-focal_distance_max):(focal_r+focal_distance_max), (focal_c-focal_distance_max):(focal_c+focal_distance_max));
+        result_focal_mask = sum(values_mask_with_damage_focal(:));
+
+        fprintf('focal r=%d c=%d %d\n', focal_r, focal_c, result_focal_mask);
     end
-    result_focal_normalized = result_focal ./ (2*repmat(focal_distance_series, [size(stack_masked, 3) 1])).^2;
     
     fprintf('show observed data normalized\n');
     f2 = figure;
-    plot(cumsum(result_random_big_normalized),'-b');
+    plot(cumsum(result_random_big),'-b');
     hold on;
-    plot(cumsum(result_random_small_normalized),'-c');
+    plot(cumsum(result_random_small),'-c');
     % plot mean of observed data
-    plot(mean(cumsum(result_random_big_normalized),2),'-b','LineWidth',3);
-    plot(mean(cumsum(result_random_small_normalized),2),'-c','LineWidth',3);
+    plot(mean(cumsum(result_random_big),2),'-b','LineWidth',3);
+    plot(mean(cumsum(result_random_small),2),'-c','LineWidth',3);
     % plot focal damage data
-    plot(cumsum(result_focal_normalized),'-r','LineWidth',3);
+    
+    plot(cumsum(result_focal,1),'-r','LineWidth',3);
     saveas(f2, sprintf('results/%s_time_series',sample_name),'png');
     close(f2);
 
     fprintf('write out files\n');
     writematrix(ts,sprintf('results/%s_ts.csv',sample_name));
-    writematrix(result_focal_normalized,sprintf('results/%s_focal_normalized.csv',sample_name));
-    writematrix(result_random_big_normalized,sprintf('results/%s_random_big_normalized.csv',sample_name));
-    writematrix(result_random_small_normalized,sprintf('results/%s_random_small_normalized.csv',sample_name));
+    writematrix([result_focal_mask; result_focal],sprintf('results/%s_focal.csv',sample_name));
+    size(result_random_big)
+    size(result_random_big_mask)
+    writematrix([squeeze(result_random_big_mask); result_random_big ],sprintf('results/%s_random_big.csv',sample_name));
+    writematrix([squeeze(result_random_small_mask); result_random_small ],sprintf('results/%s_random_small.csv',sample_name));
 end

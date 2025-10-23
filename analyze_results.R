@@ -57,21 +57,28 @@ ggsave(g_frac_pixels_cumulative, file='results/g_frac_pixels_cumulative.pdf',wid
 
 
 
-files_spatial = dir(dir_results, pattern='*normalized\\.csv$')
+files_spatial_focal = dir(dir_results, pattern='*focal\\.csv$')
+files_spatial_random_big = dir(dir_results, pattern='*random_big\\.csv$')
+files_spatial_random_small = dir(dir_results, pattern='*random_small\\.csv$')
 
 process_file_spatial <- function(file_this) {
   
-  file_parts = strsplit(gsub('normalized\\.csv','',file_this), split='_')[[1]]
+  file_parts = strsplit(gsub('\\.csv','',file_this), split='_')[[1]]
 
-  df = read.csv(file.path(dir_results, file_this))
+  df = read.csv(file.path(dir_results, file_this),header=FALSE)
+  # pull out the normalization
+  df_normalization = as.numeric(df[1,])
+  # subset to the non-normalization part
+  df = df[-1,,drop=FALSE]
   
-  if (file_parts[5] == 'focal')
+  print(str(df[,1]))
+  print(str(df_normalization))
+  for (i in 1:ncol(df))
   {
-    # pick the largest spatial scale only
-    df = df[,ncol(df),drop=FALSE]
+    df[,i] = df[,i] / df_normalization[i]
   }
-  names(df) = c(1:ncol(df))
   
+  names(df) = c(1:ncol(df))
   
   df_long = df %>% 
     apply(2, cumsum) %>%
@@ -88,7 +95,8 @@ process_file_spatial <- function(file_this) {
   return(df_long)
 }
 
-df_all = do.call('rbind',lapply(process_file_spatial, process_file)) %>%
+df_all = do.call('rbind',lapply(c(files_spatial_focal, files_spatial_random_big, files_spatial_random_small), 
+                                process_file_spatial)) %>%
   group_by(species, treatment) %>%
   # renumber to 1-3
   mutate(leaf_replicate=as.numeric(factor(leaf_replicate))) %>%
@@ -157,3 +165,18 @@ g_quantiles = ggplot(df_quantiles %>%
   theme_bw() +
   geom_hline(yintercept=c(-2,2),color='green')
 ggsave(g_quantiles, file='results/g_quantiles.png',width=8,height=8)
+
+
+# not very useful below
+df_quantiles_categorized = df_quantiles %>%
+  mutate(outcome.small = factor(
+           ifelse(p.small < 0.05, ifelse(z.small < 0, 'negative','positive'),'insignificant'),levels=c('negative','insignificant','positive')))
+
+ggplot(df_quantiles_categorized %>% 
+         filter(treatment!='C') %>%
+         filter(!is.na(outcome.small)), 
+       aes(x=time,y=outcome.small, color=factor(leaf_replicate),
+           group=paste(species,treatment,leaf_replicate))) + 
+  geom_line() + 
+  facet_grid(species~treatment) +
+  theme_bw()
