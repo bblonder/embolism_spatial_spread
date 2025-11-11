@@ -1,0 +1,36 @@
+
+todo
+count # vein pixels in each box
+# vein pixels in each image
+
+
+heterogeneity is the rule in terms of speed
+do damage spread further from damage point? skip this, too hard to do
+use just the time axis, not water potential
+
+
+what kind of normalization should we be doing for the # of embolized pixels in the rectangle? or divide by the total  of pixels that could be embolized, i.e. the # that are veins in the rectangle?
+
+try a few different normalizations, different rectangle sizes. 
+
+or divide by the mean # of pixels within each region.
+
+
+show overall vulnerability curves across the whole leaf as a preliminary figure
+
+
+try different rectangle sizes
+
+standardize on doing this vs time not vs water potential
+
+
+dataset not big enouggh
+
+ilaine: intro discussion
+
+
+
+ben to:
+* write up hypothses and questions
+* statistical methods
+* blank sections for ilaine/lisa

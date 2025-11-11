@@ -20,7 +20,7 @@ function [] = spread(sample_name, filename_stack_1, filename_stack_2, filename_s
     end
     f000=figure;
     imshow(mask_with_damage);
-    saveas(f000, sprintf('results/%s_mask_with_damage',sample_name),'png');
+    saveas(f000, sprintf('results/%s_%d_mask_with_damage',sample_name, focal_distance_max),'png');
     close(f000);
     
     fprintf('load in stack 1\n');
@@ -76,12 +76,12 @@ function [] = spread(sample_name, filename_stack_1, filename_stack_2, filename_s
     mask_with_damage_scaled = imresize(mask_with_damage, size(stack,[1 2]));
     
     % get the embolism time series
-    fprintf('get all embolisms\n');
+    fprintf('get time series of all embolisms across leaf\n');
     ts = squeeze(sum(stack_masked, [1 2]));
     
     f00 = figure;
     plot(ts); hold on; plot(cumsum(ts));
-    saveas(f00, sprintf('results/%s_ts',sample_name),'png');
+    saveas(f00, sprintf('results/%s_%d_ts',sample_name, focal_distance_max),'png');
     close(f00);
 
     fprintf('summing all embolisms\n');
@@ -102,9 +102,9 @@ function [] = spread(sample_name, filename_stack_1, filename_stack_2, filename_s
         img = insertShape(img,'filledcircle',[damage_c/scale_factor_veins damage_r/scale_factor_veins, damage_radius/scale_factor_veins],ShapeColor="red");
     end
     imshow(img);
-    saveas(f0, sprintf('results/%s_damage',sample_name),'png');
+    saveas(f0, sprintf('results/%s_%d_damage',sample_name, focal_distance_max),'png');
     close(f0);
-    
+
     % save memory
     clear stack;
     clear mask_array;
@@ -127,6 +127,15 @@ function [] = spread(sample_name, filename_stack_1, filename_stack_2, filename_s
 
     veins_big = (veins_dist_transformed > SIZE_BIG);
     veins_small = (veins_dist_transformed < SIZE_SMALL & veins_dist_transformed > 2);
+
+
+    % get total lamina pixels and total vein pixels
+    px_count_mask = sum(mask_scaled(:) == 0);
+    px_count_veins = sum(veins_scaled_binary(:) ~= 0);
+    px_count_total = prod(size(mask_scaled));
+    writematrix([px_count_mask, px_count_veins, px_count_total], sprintf('results/%s_%d_px_count.csv',sample_name, focal_distance_max));
+
+
     
     fprintf('pick random coordinates\n');
     % pick random coordinates within the buffer area at a certain size class 
@@ -153,7 +162,7 @@ function [] = spread(sample_name, filename_stack_1, filename_stack_2, filename_s
     end
     
     imshow(img);
-    saveas(f1, sprintf('results/%s_image',sample_name),'png');
+    saveas(f1, sprintf('results/%s_%d_image',sample_name, focal_distance_max),'png');
     close(f1);
     
 
@@ -228,14 +237,14 @@ function [] = spread(sample_name, filename_stack_1, filename_stack_2, filename_s
     % plot focal damage data
     
     plot(cumsum(result_focal,1),'-r','LineWidth',3);
-    saveas(f2, sprintf('results/%s_time_series',sample_name),'png');
+    saveas(f2, sprintf('results/%s_%d_time_series',sample_name, focal_distance_max),'png');
     close(f2);
 
     fprintf('write out files\n');
-    writematrix(ts,sprintf('results/%s_ts.csv',sample_name));
-    writematrix([result_focal_mask; result_focal],sprintf('results/%s_focal.csv',sample_name));
+    writematrix(ts,sprintf('results/%s_%d_ts.csv',sample_name, focal_distance_max));
+    writematrix([result_focal_mask; result_focal],sprintf('results/%s_%d_focal.csv',sample_name, focal_distance_max));
     size(result_random_big)
     size(result_random_big_mask)
-    writematrix([squeeze(result_random_big_mask); result_random_big ],sprintf('results/%s_random_big.csv',sample_name));
-    writematrix([squeeze(result_random_small_mask); result_random_small ],sprintf('results/%s_random_small.csv',sample_name));
+    writematrix([squeeze(result_random_big_mask); result_random_big ],sprintf('results/%s_%d_random_big.csv',sample_name, focal_distance_max));
+    writematrix([squeeze(result_random_small_mask); result_random_small ],sprintf('results/%s_%d_random_small.csv',sample_name, focal_distance_max));
 end
