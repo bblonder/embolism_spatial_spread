@@ -75,6 +75,11 @@ function [] = spread(sample_name, filename_stack_1, filename_stack_2, filename_s
     % also scale the damage mask
     mask_with_damage_scaled = imresize(mask_with_damage, size(stack,[1 2]));
     
+    % write out the embolism timing
+    fprintf('get timing of first embolism\n');
+    stack_masked_first = first_time(stack_masked);
+    imwrite(uint16(stack_masked_first), sprintf('results/%s_%d_first_time.tif',sample_name, focal_distance_max),'Compression','lzw');
+
     % get the embolism time series
     fprintf('get time series of all embolisms across leaf\n');
     ts = squeeze(sum(stack_masked, [1 2]));

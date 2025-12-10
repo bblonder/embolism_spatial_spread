@@ -57,7 +57,50 @@ ggsave(g_frac_pixels_cumulative, file='results/g_frac_pixels_cumulative_whole_le
 
 
 
+# get total lamina pixels
+df_px_counts = do.call("rbind",lapply(dir(path='results',pattern='*px_count\\.csv',full.names = TRUE), function(file_this) {
+  
+  file_parts = strsplit(gsub('px_count\\.csv','',basename(file_this)), split='_')[[1]]
+  
+  
+  z = read.csv(file_this,header = FALSE)
+  names(z) = c('px_mask','px_veins','px_total')
+  
+  z = z %>%
+    mutate(species=paste(file_parts[1:2],collapse='_'),
+           treatment=file_parts[3],
+           focal_distance_max=file_parts[5],
+           leaf_replicate=as.numeric(file_parts[4])) %>%
+  
+  return(z)
+  })) %>%
+  group_by(species, treatment, focal_distance_max) %>%
+  # renumber to 1-3
+  mutate(leaf_replicate=as.numeric(factor(leaf_replicate))) %>%
+  ungroup %>%
+  as.data.frame
 
+
+# get cumulative embolized pixels
+df_px_counts_joined = df_all_vulnerability %>% 
+  group_by(species, treatment, leaf_replicate, focal_distance_max) %>% 
+  summarize(n_pixels_embolized=max(n_pixels_cumulative)) %>%
+  left_join(df_px_counts,by=c('species','treatment','leaf_replicate','focal_distance_max')) %>%
+  # now drop the focal distance part - not needed
+  group_by(species, treatment, leaf_replicate) %>%
+  slice_head(n=1)
+
+g_frac_px_total = ggplot(df_px_counts_joined, aes(x=species,y=n_pixels_embolized/px_mask,color=treatment)) +
+  geom_point() +
+  theme_bw()
+ggsave(g_frac_px_total, file='results/g_frac_px_total_whole_leaf.pdf',width=8,height=6)
+
+
+
+
+
+
+# start spatial analyses
 files_spatial_focal = dir(dir_results, pattern='*focal\\.csv$')
 files_spatial_random_big = dir(dir_results, pattern='*random_big\\.csv$')
 files_spatial_random_small = dir(dir_results, pattern='*random_small\\.csv$')
@@ -108,6 +151,42 @@ df_all = do.call('rbind',lapply(c(files_spatial_focal, files_spatial_random_big,
 df_all = df_all %>% 
   group_by(species, treatment, leaf_replicate, simulation_replicate, focal_distance_max) %>% 
   mutate(value_normalized_by_px_embolized_max = value / max(value))
+
+
+
+# calculate t50 metric
+df_t50_normalized = df_all %>%
+  ungroup %>%
+  group_by(species, treatment, leaf_replicate, simulation_replicate, focal_distance_max) %>%
+  mutate(at_50 = value_normalized_by_px_embolized_max>0.5) %>%
+  filter(at_50) %>%
+  arrange(time) %>%
+  slice_head(n=1)
+
+g_t50_normalized = ggplot(df_t50_normalized, aes(x=species,y=time,color=treatment)) +
+  geom_boxplot() +
+  facet_grid(focal_distance_max~leaf_replicate) +
+  theme_bw() +
+  ggtitle('t50 = value_normalized_by_px_embolized_max')
+ggsave(g_t50_normalized, file='results/g_t50_normalized.pdf',width=10,height = 7)
+
+df_t05 = df_all %>%
+  ungroup %>%
+  group_by(species, treatment, leaf_replicate, simulation_replicate, focal_distance_max) %>%
+  mutate(at_05 = value>0.05) %>%
+  filter(at_05) %>%
+  arrange(time) %>%
+  slice_head(n=1)
+
+g_t05 = ggplot(df_t05, aes(x=species,y=time,color=treatment)) +
+  geom_boxplot() +
+  facet_grid(focal_distance_max~leaf_replicate) +
+  theme_bw() +
+  ggtitle('t05 = value')
+ggsave(g_t05, file='results/g_t05.pdf',width=10,height = 7)
+
+
+
 
 focal_distances = as.numeric(unique(df_all$focal_distance_max))
 lapply(focal_distances, function(fd) 
